@@ -1,14 +1,13 @@
 if (window.ScrollableMap === undefined) {
     const DEBUG = chrome.runtime.getManifest().version === '10000';
     window.ScrollableMap = function (div, type, id, prefs) {
-
         let enabled = false;
 
         function enable() {
             if (enabled) return;
             enabled = true;
             console.log('map loaded');
-            chrome.runtime.sendMessage({ 'action': 'mapLoaded' });
+            chrome.runtime.sendMessage({ action: 'mapLoaded' });
             refreshActivationAffordance();
             div.setAttribute('data-scrollmaps', 'enabled');
         }
@@ -28,8 +27,10 @@ if (window.ScrollableMap === undefined) {
         }
 
         function _findLineageScrollMap(node) {
-            return _findDescendantScrollMap(node)
-                || _findAncestorScrollMap(node.parentNode);
+            return (
+                _findDescendantScrollMap(node) ||
+                _findAncestorScrollMap(node.parentNode)
+            );
         }
 
         let lineage = _findLineageScrollMap(div);
@@ -56,7 +57,8 @@ if (window.ScrollableMap === undefined) {
         div.setAttribute('data-scrollmaps', 'false');
 
         const style = document.createElement('style');
-        style.innerHTML = '.gmnoprint, .gm-style .place-card, .gm-style .login-control { transition: opacity 0.3s !important; }' +
+        style.innerHTML =
+            '.gmnoprint, .gm-style .place-card, .gm-style .login-control { transition: opacity 0.3s !important; }' +
             '.scrollMapsHideControls .gmnoprint, .scrollMapsHideControls .gm-style .place-card, .scrollMapsHideControls .gm-style .login-control { opacity: 0.5 !important; }';
         document.head.appendChild(style);
 
@@ -77,12 +79,33 @@ if (window.ScrollableMap === undefined) {
             self.type = type;
             div.addEventListener('wheel', self.handleWheelEvent, true);
 
-            window.addEventListener('mousemove', function (e) {
-                if (e.detail !== 88) {
-                    var event = new CustomEvent('realmousemove', { 'detail': [e.pageX, e.pageY] });
-                    e.target.dispatchEvent(event);
-                }
-            }, true);
+            window.addEventListener(
+                'mousemove',
+                function (e) {
+                    if (e.detail !== 88) {
+                        e.stopImmediatePropagation();
+                        var event = new CustomEvent('realmousemove', {
+                            detail: [e.pageX, e.pageY],
+                        });
+                        e.target.dispatchEvent(event);
+                    }
+                },
+                true,
+            );
+
+            window.addEventListener(
+                'pointermove',
+                function (e) {
+                    if (e.detail !== 88) {
+                        e.stopImmediatePropagation();
+                        var event = new CustomEvent('realmousemove', {
+                            detail: [e.pageX, e.pageY],
+                        });
+                        e.target.dispatchEvent(event);
+                    }
+                },
+                true,
+            );
 
             mapClicked = false;
 
@@ -98,32 +121,38 @@ if (window.ScrollableMap === undefined) {
                 prefs[key] = value;
             });
 
-            chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-                if (request.action === 'browserActionClicked') {
-                    enable();
-                }
-            });
+            chrome.runtime.onMessage.addListener(
+                (request, sender, sendResponse) => {
+                    if (request.action === 'browserActionClicked') {
+                        enable();
+                    }
+                },
+            );
 
             if (window.SCROLLMAPS_enabled || prefs['enabled']) {
                 enable();
             }
 
-            div.addEventListener('click', (event) => {
-                if (_isMapActivatable()) {
-                    if (event) event.stopPropagation();
-                    mapClicked = true;
-                }
-                refreshActivationAffordance();
-                lastTarget = null;
-            }, true);
+            div.addEventListener(
+                'click',
+                (event) => {
+                    if (_isMapActivatable()) {
+                        if (event) event.stopPropagation();
+                        mapClicked = true;
+                    }
+                    refreshActivationAffordance();
+                    lastTarget = null;
+                },
+                true,
+            );
             const blockEventIfNotActivated = (event) => {
                 if (_isMapActivatable()) {
                     event.stopPropagation();
                     event.preventDefault();
                 }
-            }
+            };
             div.addEventListener('mousedown', blockEventIfNotActivated, true);
-            div.addEventListener('mouseup', blockEventIfNotActivated, true)
+            div.addEventListener('mouseup', blockEventIfNotActivated, true);
             div.addEventListener('mouseleave', () => {
                 mapClicked = false;
                 refreshActivationAffordance();
@@ -132,29 +161,38 @@ if (window.ScrollableMap === undefined) {
 
             // Observe if the scroll map element is removed. Send a message to the background
             // page so it can update the browser action status.
-            const mutationObserver = new MutationObserver((mutationList, observer) => {
-                const hasRemovedNodes = mutationList.some(m => m.removedNodes.length > 0);
-                if (hasRemovedNodes && !document.contains(div)) {
-                    chrome.runtime.sendMessage({ action: 'mapUnloaded' });
-                }
+            const mutationObserver = new MutationObserver(
+                (mutationList, observer) => {
+                    const hasRemovedNodes = mutationList.some(
+                        (m) => m.removedNodes.length > 0,
+                    );
+                    if (hasRemovedNodes && !document.contains(div)) {
+                        chrome.runtime.sendMessage({ action: 'mapUnloaded' });
+                    }
+                },
+            );
+            mutationObserver.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
             });
-            mutationObserver.observe(document.documentElement, { childList: true, subtree: true });
 
             window.addEventListener('unload', () => {
                 // For the case where ScrollMap is loaded in an iframe, and that iframe is removed.
                 chrome.runtime.sendMessage({ action: 'mapUnloaded' });
             });
-        }
+        };
 
         // A map is activatable when
         //   1. relevant settings and scrollability requirements are met, and
         //   2. it is not currently activated.
         function _isMapActivatable() {
-            return self.type !== ScrollableMap.TYPE_NEWWEB &&  // Web maps are never activatable
+            return (
+                self.type !== ScrollableMap.TYPE_NEWWEB && // Web maps are never activatable
                 bodyScrolls &&
                 prefs['frameRequireFocus'] &&
                 enabled &&
-                !mapClicked;
+                !mapClicked
+            );
         }
 
         function refreshActivationAffordance() {
@@ -165,12 +203,22 @@ if (window.ScrollableMap === undefined) {
             }
         }
 
-        var dragger = new DragSimulator({});
+        const mapTypeMapping = {
+            earth: 'pointer',
+            gm: 'mouse',
+        };
+
+        var dragger = new DragSimulator({
+            drapType: mapTypeMapping[window.MAP_TYPE],
+        });
 
         self.realMouseMoved = function (e) {
-            if (lastTarget) {
+            if (dragger.opts.pointerType === 'mouse') {
                 dragger.simulateMouseUp(lastTarget);
+            } else {
+                dragger.simulatePointerUp(lastTarget);
             }
+
         };
         window.addEventListener('realmousemove', self.realMouseMoved, true);
 
@@ -190,17 +238,28 @@ if (window.ScrollableMap === undefined) {
                 if (originalEvent.ctrlKey) {
                     scale = prefs['zoomSpeed'] / 100;
                     if (type !== ScrollableMap.TYPE_NEWWEB) scale *= 3;
-                    if (type !== ScrollableMap.TYPE_NEWWEB || !isWebGlCanvas(target)) {
+                    if (
+                        type !== ScrollableMap.TYPE_NEWWEB ||
+                        !isWebGlCanvas(target)
+                    ) {
                         // For 2d canvas (try with ?force=canvas in the URL), the zooming doesn't
                         // behave naturally. It zooms a specific increment on each wheel event
                         // and doesn't look at deltaY. Throttle the number of events to keep the
                         // zooming at a reasonable rate.
-                        if (!zoomDeltaTracker.zoomInDelta(originalEvent.deltaY * scale)) {
+                        if (
+                            !zoomDeltaTracker.zoomInDelta(
+                                originalEvent.deltaY * scale,
+                            )
+                        ) {
                             return;
                         }
                     }
                 }
-                let e = createBackdoorWheelEvent(originalEvent, true /* zoomIn */, scale);
+                let e = createBackdoorWheelEvent(
+                    originalEvent,
+                    true /* zoomIn */,
+                    scale,
+                );
                 target.dispatchEvent(e);
                 return;
             } else {
@@ -218,17 +277,28 @@ if (window.ScrollableMap === undefined) {
                 if (originalEvent.ctrlKey) {
                     scale = prefs['zoomSpeed'] / 100;
                     if (type !== ScrollableMap.TYPE_NEWWEB) scale *= 3;
-                    if (type !== ScrollableMap.TYPE_NEWWEB || !isWebGlCanvas(target)) {
+                    if (
+                        type !== ScrollableMap.TYPE_NEWWEB ||
+                        !isWebGlCanvas(target)
+                    ) {
                         // For 2d canvas (try with ?force=canvas in the URL), the zooming doesn't
                         // behave naturally. It zooms a specific increment on each wheel event
                         // and doesn't look at deltaY. Throttle the number of events to keep the
                         // zooming at a reasonable rate.
-                        if (!zoomDeltaTracker.zoomOutDelta(originalEvent.deltaY * scale)) {
+                        if (
+                            !zoomDeltaTracker.zoomOutDelta(
+                                originalEvent.deltaY * scale,
+                            )
+                        ) {
                             return;
                         }
                     }
                 }
-                let e = createBackdoorWheelEvent(originalEvent, false /* zoomIn */, scale);
+                let e = createBackdoorWheelEvent(
+                    originalEvent,
+                    false /* zoomIn */,
+                    scale,
+                );
                 target.dispatchEvent(e);
                 return;
             } else {
@@ -254,7 +324,10 @@ if (window.ScrollableMap === undefined) {
 
                 return new WheelEvent('wheel', init);
             } else {
-                console.log('Trying to create backdoor event out of non-wheel event', originalEvent);
+                console.log(
+                    'Trying to create backdoor event out of non-wheel event',
+                    originalEvent,
+                );
             }
         }
 
@@ -267,7 +340,8 @@ if (window.ScrollableMap === undefined) {
         self.handleWheelEvent = function (e) {
             if (!enabled && !window.safari) return;
             if (_isMapActivatable()) {
-                e.stopPropagation(); return;
+                e.stopPropagation();
+                return;
             }
 
             if (e.screenX == -88 && e.screenY == -88) {
@@ -275,19 +349,24 @@ if (window.ScrollableMap === undefined) {
             }
 
             var target = e.target || e.srcElement;
-            var isAccelerating = accelero.isAccelerating(e.deltaX, e.deltaY, e.timeStamp);
+            var isAccelerating = accelero.isAccelerating(
+                e.deltaX,
+                e.deltaY,
+                e.timeStamp,
+            );
 
             if (Scrollability.hasScrollableParent(target, div)) {
                 // something is scrollable, let's allow it to scroll
                 return;
             }
 
-            if (lastTarget && div.contains(lastTarget))
-                target = lastTarget;
-            else
-                lastTarget = target;
+            if (lastTarget && div.contains(lastTarget)) target = lastTarget;
+            else lastTarget = target;
 
-            var destinationState = (e.metaKey || e.ctrlKey || e.altKey) ? States.zooming : States.scrolling;
+            var destinationState =
+                e.metaKey || e.ctrlKey || e.altKey
+                    ? States.zooming
+                    : States.scrolling;
             if (isAccelerating || state == destinationState) {
                 state = destinationState;
                 var mousePos = [e.clientX, e.clientY];
@@ -296,8 +375,14 @@ if (window.ScrollableMap === undefined) {
                     case States.zooming:
                         // In Chrome, ctrl + wheel => pinch gesture. Do not invert zoom for the pinch
                         // gesture.
-                        var factor = (prefs['invertZoom'] && !(window.chrome && e.ctrlKey)) ? -1 : 1;
-                        if (window.safari && e.webkitDirectionInvertedFromDevice) {
+                        var factor =
+                            prefs['invertZoom'] && !(window.chrome && e.ctrlKey)
+                                ? -1
+                                : 1;
+                        if (
+                            window.safari &&
+                            e.webkitDirectionInvertedFromDevice
+                        ) {
                             factor *= -1;
                         }
                         if (e.deltaY * factor < 0) {
@@ -307,10 +392,20 @@ if (window.ScrollableMap === undefined) {
                         }
                         break;
                     case States.scrolling:
-                        setTimer('flushAverage', function () { averageX.flush(); averageY.flush(); }, 200);
-                        averageX.push(e.deltaX); averageY.push(e.deltaY);
+                        setTimer(
+                            'flushAverage',
+                            function () {
+                                averageX.flush();
+                                averageY.flush();
+                            },
+                            200,
+                        );
+                        averageX.push(e.deltaX);
+                        averageY.push(e.deltaY);
 
-                        const speedFactor = (prefs['scrollSpeed'] / 100) * (prefs['invertScroll'] ? 1 : -1);
+                        const speedFactor =
+                            (prefs['scrollSpeed'] / 100) *
+                            (prefs['invertScroll'] ? 1 : -1);
                         const dx = averageX.getAverage() * speedFactor;
                         const dy = averageY.getAverage() * speedFactor;
 
@@ -328,7 +423,6 @@ if (window.ScrollableMap === undefined) {
         };
 
         self.init(div, type);
-
     };
 
     function setTimer(timerID, newFunction, newDelay) {
@@ -343,7 +437,6 @@ if (window.ScrollableMap === undefined) {
     ScrollableMap.TYPE_NEWWEB = 3;
     ScrollableMap.TYPE_STREETVIEW_API = 4;
 
-
     const DELTA_PER_ZOOM_LEVEL = 50;
 
     class ZoomDeltaTracker {
@@ -353,7 +446,8 @@ if (window.ScrollableMap === undefined) {
         }
 
         zoomInDelta(delta) {
-            if (Date.now() - this.lastZoomTime > 1000) this.accumulatedZoomDelta = 0;
+            if (Date.now() - this.lastZoomTime > 1000)
+                this.accumulatedZoomDelta = 0;
             this.accumulatedZoomDelta += delta;
             this.lastZoomTime = Date.now();
             if (this.accumulatedZoomDelta > -DELTA_PER_ZOOM_LEVEL) return false;
@@ -362,7 +456,8 @@ if (window.ScrollableMap === undefined) {
         }
 
         zoomOutDelta(delta) {
-            if (Date.now() - this.lastZoomTime > 1000) this.accumulatedZoomDelta = 0;
+            if (Date.now() - this.lastZoomTime > 1000)
+                this.accumulatedZoomDelta = 0;
             this.accumulatedZoomDelta += delta;
             this.lastZoomTime = Date.now();
             if (this.accumulatedZoomDelta < DELTA_PER_ZOOM_LEVEL) return false;
@@ -380,7 +475,9 @@ if (window.ScrollableMap === undefined) {
         }
 
         push(data, time) {
-            this.data = this.data * SM_LOW_PASS_FILTER_SMOOTHING + data * (1 - SM_LOW_PASS_FILTER_SMOOTHING);
+            this.data =
+                this.data * SM_LOW_PASS_FILTER_SMOOTHING +
+                data * (1 - SM_LOW_PASS_FILTER_SMOOTHING);
             this.lastDataTime = time || Date.now();
         }
 
@@ -389,7 +486,13 @@ if (window.ScrollableMap === undefined) {
             if (this.lastDataTime === 0) {
                 return 0;
             }
-            return this.data * Math.pow(SM_LOW_PASS_FILTER_SMOOTHING, (time - this.lastDataTime) / 20);
+            return (
+                this.data *
+                Math.pow(
+                    SM_LOW_PASS_FILTER_SMOOTHING,
+                    (time - this.lastDataTime) / 20,
+                )
+            );
         }
 
         flush() {
@@ -419,7 +522,7 @@ if (window.ScrollableMap === undefined) {
             var t = time - this.maxTime;
             var prediction = this.max * Math.exp(-0.0038 * t);
 
-            var difference = (Math.abs(delta) - Math.abs(prediction));
+            var difference = Math.abs(delta) - Math.abs(prediction);
 
             if (difference / Math.abs(prediction) > 1.2 && difference > 0.5) {
                 this.newScrollAction();
@@ -452,19 +555,20 @@ if (window.ScrollableMap === undefined) {
         // The minimum distance to simulate a drag, to avoid the event being interpreted as
         // a click. If the scroll gesture's distance is smaller than this, it will be scaled
         // up to reach this distance.
-        'minDragDistance': 3,
+        minDragDistance: 3,
         // The maximum distance that can be scrolled (along either X or Y axis) before a
         // mouse up is force triggered. This is useful for street view where the panning
         // is non-linear, so that the panning response will reset one in a while.
         // If this value is too large, the stree view will stop panning until you want for
         // the mouse-up timeout. If this value is too small, the event may be treated as a
         // mouse move rather than a drag.
-        'maxDistanceUntilUp': 600,
+        maxDistanceUntilUp: 600,
         // The delay in milliseconds before a mouse up is simulated, after the last call to
         // simulateDrag. This is non-zero for newer implementations tend to have inertial-drag
         // which tracks the mouse events over time, and therefore firing mousedown + mousemove
         // + mouseup events in the same loop synchronously will not work.
-        'mouseUpDelay': 100,
+        mouseUpDelay: 100,
+        drapType: 'mouse',
     };
 
     class DragSimulator {
@@ -480,30 +584,60 @@ if (window.ScrollableMap === undefined) {
         }
 
         simulateMouseDown(target, point) {
-            this.mouseDownPoint = [point[0], point[1]];  // Deep copy
+            this.mouseDownPoint = [point[0], point[1]]; // Deep copy
             this.simulatedMousePoint = point;
             var downEvent = new MouseEvent('mousedown', {
-                'bubbles': true,
-                'cancelable': true,
-                'detail': 1,
-                'clientX': point[0],
-                'clientY': point[1],
-                'button': 0,
-                'buttons': 1
+                bubbles: true,
+                cancelable: true,
+                detail: 1,
+                clientX: point[0],
+                clientY: point[1],
+                button: 0,
+                buttons: 1,
+            });
+            target.dispatchEvent(downEvent);
+        }
+
+        simulatePointerDown(target, point) {
+            this.mouseDownPoint = [point[0], point[1]]; // Deep copy
+            this.simulatedMousePoint = point;
+            var downEvent = new PointerEvent('pointerdown', {
+                pointerType: 'mouse',
+                bubbles: true,
+                cancelable: true,
+                detail: 1,
+                clientX: point[0],
+                clientY: point[1],
+                button: 0,
+                buttons: 1,
             });
             target.dispatchEvent(downEvent);
         }
 
         simulateMouseUp(target) {
-            if (!this.mouseDownPoint) return;
             var upEvent = new MouseEvent('mouseup', {
-                'bubbles': true,
-                'cancelable': true,
-                'detail': 1,
-                'clientX': this.simulatedMousePoint[0],
-                'clientY': this.simulatedMousePoint[1],
-                'button': 0,
-                'buttons': 0
+                bubbles: true,
+                cancelable: true,
+                detail: 1,
+                clientX: this.simulatedMousePoint[0],
+                clientY: this.simulatedMousePoint[1],
+                button: 0,
+                buttons: 0,
+            });
+            target.dispatchEvent(upEvent);
+            this.mouseDownPoint = null;
+        }
+
+        simulatePointerUp(target) {
+            var upEvent = new PointerEvent('pointerup', {
+                pointerType: 'mouse',
+                bubbles: true,
+                cancelable: true,
+                detail: 1,
+                clientX: this.simulatedMousePoint[0],
+                clientY: this.simulatedMousePoint[1],
+                button: 0,
+                buttons: 0,
             });
             target.dispatchEvent(upEvent);
             this.mouseDownPoint = null;
@@ -513,20 +647,37 @@ if (window.ScrollableMap === undefined) {
             this.simulatedMousePoint[0] += dx;
             this.simulatedMousePoint[1] += dy;
             var moveEvent = new MouseEvent('mousemove', {
-                'bubbles': true,
-                'cancelable': false,
-                'detail': 88,
-                'clientX': this.simulatedMousePoint[0],
-                'clientY': this.simulatedMousePoint[1],
-                'button': 0,
-                'buttons': 1  // Left mouse button should be down when simulating drag-move
-            })
+                bubbles: true,
+                cancelable: false,
+                detail: 88,
+                clientX: this.simulatedMousePoint[0],
+                clientY: this.simulatedMousePoint[1],
+                button: 0,
+                buttons: 1, // Left mouse button should be down when simulating drag-move
+            });
+            target.dispatchEvent(moveEvent);
+        }
+
+        simulatePointerMove(target, dx, dy) {
+            this.simulatedMousePoint[0] += dx;
+            this.simulatedMousePoint[1] += dy;
+            var moveEvent = new PointerEvent('pointermove', {
+                pointerType: 'mouse',
+                bubbles: true,
+                cancelable: false,
+                detail: 88,
+                clientX: this.simulatedMousePoint[0],
+                clientY: this.simulatedMousePoint[1],
+                button: 0,
+                buttons: 1, // Left mouse button should be down when simulating drag-move
+            });
             target.dispatchEvent(moveEvent);
         }
 
         simulateDrag(target, point, dx, dy) {
             var minDragDistance = this.opts.minDragDistance;
-            var diffX = Math.abs(dx), diffY = Math.abs(dy);
+            var diffX = Math.abs(dx),
+                diffY = Math.abs(dy);
             if (diffX < minDragDistance && diffY < minDragDistance) {
                 // scale to make sure at least one of them is > minDragDistance
                 // this ensures it's treated as a drag, not a click
@@ -536,28 +687,51 @@ if (window.ScrollableMap === undefined) {
             }
 
             if (!this.mouseDownPoint) {
-                this.simulateMouseDown(target, point);
+                if (this.opts.drapType === 'mouse') {
+                    this.simulateMouseDown(target, point);
+                } else {
+                    this.simulatePointerDown(target, point);
+                }
             }
 
-            this.simulateMouseMove(target, dx, dy);
+            if (this.opts.drapType === 'mouse') {
+                this.simulateMouseMove(target, dx, dy);
+            } else {
+                this.simulatePointerMove(target, dx, dy);
+            }
 
             // Street view panning has set an exponential decaying curve, in order for the scroll
             // to continue, pretend a mouse up every so often.
             // There is a visible jump when this happens if you observe carefully, but the results
             // are good enough for general use.
             var maxDistanceUntilUp = this.opts.maxDistanceUntilUp;
-            if (Math.abs(this.simulatedMousePoint[0] - this.mouseDownPoint[0]) > maxDistanceUntilUp ||
-                Math.abs(this.simulatedMousePoint[1] - this.mouseDownPoint[1]) > maxDistanceUntilUp) {
-                this.simulateMouseUp(target);
+            if (
+                Math.abs(this.simulatedMousePoint[0] - this.mouseDownPoint[0]) >
+                    maxDistanceUntilUp ||
+                Math.abs(this.simulatedMousePoint[1] - this.mouseDownPoint[1]) >
+                    maxDistanceUntilUp
+            ) {
+                if (this.opts.drapType === 'mouse') {
+                    this.simulateMouseUp(target);
+                } else {
+                    this.simulatePointerUp(target);
+                }
             }
 
             if (this.opts.mouseUpDelay > 0) {
                 window.clearTimeout(this.timer);
-                this.timer = window.setTimeout(
-                    this.simulateMouseUp.bind(this, target),
-                    this.opts.mouseUpDelay);
+                if (this.opts.drapType === 'mouse') {
+                    this.timer = window.setTimeout(
+                        this.simulateMouseUp.bind(this, target),
+                        this.opts.mouseUpDelay,
+                    );
+                } else {
+                    this.timer = window.setTimeout(
+                        this.simulatePointerUp.bind(this, target),
+                        this.opts.mouseUpDelay,
+                    );
+                }
             }
         }
     }
-
 }
