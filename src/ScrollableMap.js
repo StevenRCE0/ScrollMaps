@@ -80,23 +80,9 @@ if (window.ScrollableMap === undefined) {
             div.addEventListener('wheel', self.handleWheelEvent, true);
 
             window.addEventListener(
-                'mousemove',
+                mapTypeMapping[window.MAP_TYPE] + 'move',
                 function (e) {
-                    if (e.detail !== 88) {
-                        e.stopImmediatePropagation();
-                        var event = new CustomEvent('realmousemove', {
-                            detail: [e.pageX, e.pageY],
-                        });
-                        e.target.dispatchEvent(event);
-                    }
-                },
-                true,
-            );
-
-            window.addEventListener(
-                'pointermove',
-                function (e) {
-                    if (e.detail !== 88) {
+                    if (e.detail !== 88 && dragger.scrollLocked) {
                         e.stopImmediatePropagation();
                         var event = new CustomEvent('realmousemove', {
                             detail: [e.pageX, e.pageY],
@@ -213,7 +199,7 @@ if (window.ScrollableMap === undefined) {
         });
 
         self.realMouseMoved = function (e) {
-            if (dragger.opts.pointerType === 'mouse') {
+            if (dragger.opts.drapType === 'mouse') {
                 dragger.simulateMouseUp(lastTarget);
             } else {
                 dragger.simulatePointerUp(lastTarget);
@@ -581,6 +567,7 @@ if (window.ScrollableMap === undefined) {
                     this.opts[i] = DRAG_SIMULATOR_DEFAULT_OPTS[i];
                 }
             }
+            this.scrollLocked = false;
         }
 
         simulateMouseDown(target, point) {
@@ -626,6 +613,7 @@ if (window.ScrollableMap === undefined) {
             });
             target.dispatchEvent(upEvent);
             this.mouseDownPoint = null;
+            this.scrollLocked = false;
         }
 
         simulatePointerUp(target) {
@@ -641,6 +629,7 @@ if (window.ScrollableMap === undefined) {
             });
             target.dispatchEvent(upEvent);
             this.mouseDownPoint = null;
+            this.scrollLocked = false;
         }
 
         simulateMouseMove(target, dx, dy) {
@@ -685,6 +674,8 @@ if (window.ScrollableMap === undefined) {
                 dx *= scale;
                 dy *= scale;
             }
+
+            this.scrollLocked = true;
 
             if (!this.mouseDownPoint) {
                 if (this.opts.drapType === 'mouse') {
